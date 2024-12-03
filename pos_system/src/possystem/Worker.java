@@ -1,13 +1,22 @@
-package possystem;
+
+/*
+ * To change this license header, choose License Headers in Project Properties.
+ * To change this template file, choose Tools | Templates
+ * and open the template in the editor.
+ */package possystem;
 
 import javax.swing.*;
 import java.awt.*;
 import java.sql.*;
 import java.util.ArrayList;
-
+/**
+ *
+ * @author PCS
+ */
 public class Worker extends JFrame {
     private DefaultListModel<String> productListModel;
     private ArrayList<Product> currentBill;
+    private double totalBillAmount = 0.0;
 
     public Worker() {
         setTitle("Worker Dashboard");
@@ -68,14 +77,12 @@ public class Worker extends JFrame {
                 JOptionPane.showMessageDialog(this, "Invalid product number.");
                 return;
             }
-
             String selectedProduct = productListModel.getElementAt(productIndex);
             String productName = selectedProduct.split(" - ")[0];
 
             String quantityStr = JOptionPane.showInputDialog(this, "Enter quantity to purchase:");
             if (quantityStr == null || quantityStr.isEmpty()) return;
             int quantity = Integer.parseInt(quantityStr);
-
             addToBill(productName, quantity);
         } catch (NumberFormatException e) {
             JOptionPane.showMessageDialog(this, "Invalid input!");
@@ -83,12 +90,52 @@ public class Worker extends JFrame {
     }
 
     private void addToBill(String productName, int quantity) {
-        // Add logic to reduce product stock and calculate bill amount
-        JOptionPane.showMessageDialog(this, "Added to bill: " + productName + " - " + quantity);
-    }
+        try (Connection conn = DbConnection.getConnection();
+             PreparedStatement stmt = conn.prepareStatement("SELECT price, quantity FROM products WHERE name = ?")) {
+            stmt.setString(1, productName);
+            try (ResultSet rs = stmt.executeQuery()) {
+                if (rs.next()) {
+                    double price = rs.getDouble("price");
+                    int stock = rs.getInt("quantity");
 
+                    if (quantity > stock) {
+                        JOptionPane.showMessageDialog(this, "Insufficient stock for " + productName, "Stock Error", JOptionPane.WARNING_MESSAGE);
+                        return;
+                    }
+                    try (PreparedStatement updateStmt = conn.prepareStatement("UPDATE products SET quantity = quantity - ? WHERE name = ?")) {
+                        updateStmt.setInt(1, quantity);
+                        updateStmt.setString(2, productName);
+                        updateStmt.executeUpdate();
+                    }
+                    currentBill.add(new Product(productName, price, quantity));
+                    totalBillAmount += price * quantity;
+
+                    JOptionPane.showMessageDialog(this, "Added to bill: " + productName + " - " + quantity);
+                } else {
+                    JOptionPane.showMessageDialog(this, "Product not found!", "Error", JOptionPane.ERROR_MESSAGE);
+                }
+            }
+        } catch (SQLException ex) {
+            ex.printStackTrace();
+            JOptionPane.showMessageDialog(this, "Database error: " + ex.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
+        }
+    }
     private void viewBill() {
-        // Display current bill
-        JOptionPane.showMessageDialog(this, "View current bill here!");
+        if (currentBill.isEmpty()) {
+            JOptionPane.showMessageDialog(this, "No items in the bill!", "Bill Details", JOptionPane.INFORMATION_MESSAGE);
+            return;
+        }
+        StringBuilder billDetails = new StringBuilder();
+        billDetails.append("Current Bill:\n");
+        billDetails.append("--------------------------------------------------\n");
+        billDetails.append(String.format("%-20s %-10s %-10s\n", "Product", "Quantity", "Price"));
+        billDetails.append("--------------------------------------------------\n");
+
+        for (Product product : currentBill) {
+            billDetails.append(String.format("%-20s %-10d %-10.2f\n", product.getName(), product.getQuantity(), product.getPrice() * product.getQuantity()));
+        }
+        billDetails.append("--------------------------------------------------\n");
+        billDetails.append(String.format("Total Amount: Rs %.2f\n", totalBillAmount));
+        JOptionPane.showMessageDialog(this, billDetails.toString(), "Bill Details", JOptionPane.INFORMATION_MESSAGE);
     }
 }

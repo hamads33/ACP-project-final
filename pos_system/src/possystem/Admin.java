@@ -1,9 +1,17 @@
+/*
+ * To change this license header, choose License Headers in Project Properties.
+ * To change this template file, choose Tools | Templates
+ * and open the template in the editor.
+ */
 package possystem;
 
 import javax.swing.*;
 import java.awt.*;
 import java.sql.*;
-
+/**
+ *
+ * @author PCS
+ */
 public class Admin extends JFrame {
     private DefaultListModel<String> productListModel;
 
